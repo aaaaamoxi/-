@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>传统时辰时辰时间显示</title>
+  <!-- Tailwind CSS v3 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#06b6d4',
+            secondary: '#fcd34d',
+            dark: '#1e293b',
+            light: '#e0f2fe',
+            'light-pink': '#fce7f3',
+            'liuzhou-qing': '#4ade80', // 静止 - 青色/绿色
+            'liuzhou-liulian': '#94a3b8', // 留连 - 灰色
+            'liuzhou-suxi': '#facc15', // 速喜 - 黄色
+            'liuzhou-chikou': '#ef4444', // 赤口 - 红色
+            'liuzhou-xiaoji': '#8b5cf6', // 小吉 - 紫色
+            'liuzhou-kongwang': '#64748b', // 空亡 - 深灰色
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          }
+        }
+      }
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .text-shadow-glow {
+        text-shadow: 0 0 10px rgba(6, 182, 212, 0.7);
+      }
+      .text-shadow-amber {
+        text-shadow: 0 0 10px rgba(252, 211, 77, 0.7);
+      }
+      .card-shadow {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
+      .current-liuzhou {
+        transform: scale(1.05);
+        z-index: 10;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      }
+    }
+  </style>
+</head>
+<body class="bg-light-pink text-gray-800 min-h-screen flex flex-col items-center justify-center p-4">
+  <div class="container mx-auto max-w-2xl">
+    <h1 class="text-3xl font-bold text-center mb-6 text-primary text-shadow-glow">传统时辰与小六壬时宪</h1>
+    
+    <!-- 日期和时间显示 -->
+    <div class="mt-6 text-center bg-white p-8 rounded-lg shadow-lg">
+      <div class="digital-time text-5xl font-bold text-primary mb-6" id="digitalTime"></div>
+      <div class="gregorian-date text-xl text-gray-800 mb-3" id="bottomGregorianDate"></div>
+      <div class="lunar-date text-lg text-gray-600" id="bottomLunarDate"></div>
+      
+      <!-- 小六壬计算数字显示 -->
+      <div class="mt-6 grid grid-cols-3 gap-4 text-center" id="liuzhouNumbers">
+        <div class="bg-light-pink p-3 rounded-lg">
+          <div class="text-sm text-gray-600">农历月份</div>
+          <div class="text-2xl font-bold text-primary" id="lunarMonthNumber">1</div>
+        </div>
+        <div class="bg-light-pink p-3 rounded-lg">
+          <div class="text-sm text-gray-600">农历日期</div>
+          <div class="text-2xl font-bold text-primary" id="lunarDayNumber">1</div>
+        </div>
+        <div class="bg-light-pink p-3 rounded-lg">
+          <div class="text-sm text-gray-600">时辰</div>
+          <div class="text-2xl font-bold text-primary" id="periodNumber">1</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 小六壬显示 -->
+    <div class="mt-8">
+      <h2 class="text-2xl font-bold text-center mb-4 text-primary">小六壬</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="liuzhouContainer">
+        <!-- 小六壬卡片将通过JavaScript动态生成 -->
+      </div>
+    </div>
+    
+    <!-- 当前小六壬详情 -->
+    <div class="mt-8 text-center bg-white p-6 rounded-lg shadow-lg" id="currentLiuZhouDetail">
+      <h3 class="text-2xl font-bold mb-2" id="currentLiuZhouName">静止</h3>
+      <p class="text-lg text-gray-600" id="currentLiuZhouMeaning">心安，吉祥之意</p>
+      <p class="mt-2 text-sm text-gray-500" id="liuzhouCalculation">计算方式：mod((月 + 日 + 时 - 2), 6)</p>
+    </div>
+    
+  </div>
+
+  <script>
+    // 十二时辰数据
+    const timePeriods = [
+      { name: '子时', period: '23:00-01:00', meaning: '夜半、子夜、中夜，十二时辰的第一个时辰' },
+      { name: '丑时', period: '01:00-03:00', meaning: '鸡鸣、荒鸡，此时天地间似有一双大手，正把夜幕与白天互相扭转' },
+      { name: '寅时', period: '03:00-05:00', meaning: '平旦、黎明、早晨，天蒙蒙亮的时刻，人们逐渐从睡梦中醒来' },
+      { name: '卯时', period: '05:00-07:00', meaning: '日出、日始、破晓、旭日，指太阳刚刚露脸，冉冉初升的那段时间' },
+      { name: '辰时', period: '07:00-09:00', meaning: '食时、早食，是古人吃早饭的时间' },
+      { name: '巳时', period: '09:00-11:00', meaning: '隅中、日禺，临近中午，艳阳当空' },
+      { name: '午时', period: '11:00-13:00', meaning: '日中、日正、中午，太阳正运行到天宇之中，光线最强烈' },
+      { name: '未时', period: '13:00-15:00', meaning: '日昳、日仄、日央、日跌，过了正午，此时太阳蹉跌而下' },
+      { name: '申时', period: '15:00-17:00', meaning: '哺时、夕食，第二次吃饭的时候' },
+      { name: '酉时', period: '17:00-19:00', meaning: '日入、日落、日沉，太阳落山的时候' },
+      { name: '戌时', period: '19:00-21:00', meaning: '黄昏、日夕、日暮、日晚，太阳已经落山，天将黑未黑' },
+      { name: '亥时', period: '21:00-23:00', meaning: '人定、定昏、彦夜，夜阑人静之夕，应该安抚心情，好好休息' }
+    ];
+
+    // 小六壬数据
+    const liuZhouData = [
+      { name: '静止', meaning: '心安，吉祥之意', color: 'liuzhou-qing', icon: 'fa-heart' },
+      { name: '留连', meaning: '晦暗不明，拖延，纠缠', color: 'liuzhou-liulian', icon: 'fa-clock-o' },
+      { name: '速喜', meaning: '快速，喜庆，时机已到', color: 'liuzhou-suxi', icon: 'fa-smile-o' },
+      { name: '赤口', meaning: '惊恐，凶险，口舌是非', color: 'liuzhou-chikou', icon: 'fa-exclamation-triangle' },
+      { name: '小吉', meaning: '家，回归，好运即将到来', color: 'liuzhou-xiaoji', icon: 'fa-home' },
+      { name: '空亡', meaning: '忧虑，不吉，无结果', color: 'liuzhou-kongwang', icon: 'fa-question-circle' }
+    ];
+
+    // 农历月份
+    const lunarMonths = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+    
+    // 农历日期
+    const lunarDays = ['初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十',
+                      '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
+                      '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十'];
+    
+    // 干支纪年
+    const heavenlyStems = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
+    const earthlyBranches = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+
+    // DOM元素
+    const digitalTimeElement = document.getElementById('digitalTime');
+    const gregorianDateElement = document.getElementById('bottomGregorianDate');
+    const lunarDateElement = document.getElementById('bottomLunarDate');
+    const liuzhouContainer = document.getElementById('liuzhouContainer');
+    const currentLiuZhouName = document.getElementById('currentLiuZhouName');
+    const currentLiuZhouMeaning = document.getElementById('currentLiuZhouMeaning');
+    const currentLiuZhouDetail = document.getElementById('currentLiuZhouDetail');
+    const liuzhouCalculation = document.getElementById('liuzhouCalculation');
+    const lunarMonthNumber = document.getElementById('lunarMonthNumber');
+    const lunarDayNumber = document.getElementById('lunarDayNumber');
+    const periodNumber = document.getElementById('periodNumber');
+
+    // 初始化小六壬卡片
+    function initLiuZhouCards() {
+      liuZhouData.forEach((item, index) => {
+        const card = document.createElement('div');
+        card.className = `bg-white rounded-lg p-4 card-shadow transition-all duration-300 hover:scale-105 cursor-pointer`;
+        card.dataset.index = index;
+        
+        card.innerHTML = `
+          <div class="flex items-center">
+            <div class="w-10 h-10 rounded-full bg-${item.color} flex items-center justify-center text-white mr-3">
+              <i class="fa ${item.icon}"></i>
+            </div>
+            <div>
+              <h3 class="font-bold text-lg">${item.name} <span class="text-sm font-normal text-gray-500">(${index + 1})</span></h3>
+              <p class="text-sm text-gray-600">${item.meaning}</p>
+            </div>
+          </div>
+        `;
+        
+        card.addEventListener('click', () => {
+          showLiuZhouDetail(index);
+        });
+        
+        liuzhouContainer.appendChild(card);
+      });
+    }
+
+    // 显示小六壬详情
+    function showLiuZhouDetail(index) {
+      const item = liuZhouData[index];
+      currentLiuZhouName.textContent = item.name;
+      currentLiuZhouName.className = `text-2xl font-bold mb-2 text-${item.color}`;
+      currentLiuZhouMeaning.textContent = item.meaning;
+      
+      // 更新卡片样式
+      document.querySelectorAll('#liuzhouContainer > div').forEach((card, i) => {
+        if (i === index) {
+          card.classList.add('current-liuzhou');
+          card.classList.add(`border-2`, `border-${item.color}`);
+        } else {
+          card.classList.remove('current-liuzhou');
+          card.classList.remove(`border-2`, `border-${item.color}`);
+        }
+      });
+      
+      // 更新详情区域背景色
+      currentLiuZhouDetail.className = `mt-8 text-center bg-white p-6 rounded-lg shadow-lg border-2 border-${item.color}`;
+    }
+
+    // 获取农历月份对应的数字(1-12)
+    function getLunarMonthNumber(lunarMonth) {
+      // 直接使用转换，直接返回1-12的农历月份
+      return lunarMonth;
+    }
+
+    // 获取农历日期对应的数字(1-30)
+    function getLunarDayNumber(lunarDay) {
+      // 不使用转换，直接返回1-30的农历日期
+      return lunarDay;
+    }
+
+    // 获取时辰对应的数字(1-12)
+    function getPeriodNumber(periodIndex) {
+      // 不使用转换，直接返回1-12的时辰
+      return periodIndex + 1;
+    }
+
+    // 根据农历的月、日、时计算对应的小六壬
+    function calculateLiuZhou(monthNum, dayNum, periodNum) {
+      // 小六壬计算方法：mod(([农历月]+[农历日]+[时辰]-2),6)
+      // 结果映射：1对应静止，2对应留连，3对应速喜，4对应赤口，5对应小吉，0对应空亡
+      const sum = monthNum + dayNum + periodNum;
+      const remainder = (sum - 2) % 6;
+      // 确保结果为正数
+      const result = remainder >= 0 ? remainder : remainder + 6;
+      // 根据用户要求的映射关系调整结果
+      // 原结果：0→静止，1→留连，2→速喜，3→赤口，4→小吉，5→空亡
+      // 用户要求：1→静止，2→留连，3→速喜，4→赤口，5→小吉，0→空亡
+      // 计算新索引：结果为0时对应空亡亡(索引5)，其他结果减1
+      return result === 0 ? 5 : result - 1;
+    }
+
+    // 获取网络时间
+    function getNetworkTime() {
+      return new Promise((resolve, reject) => {
+        // 使用百度获取网络时间
+        const xhr = new XMLHttpRequest();
+        xhr.open('HEAD', 'https://www.baidu.com', true);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+              const dateStr = xhr.getResponseHeader('Date');
+              if (dateStr) {
+                resolve(new Date(dateStr));
+              } else {
+                // 如果无法获取响应头日期，则使用本地时间
+                resolve(new Date());
+              }
+            } else {
+              // 如果请求失败，则使用本地时间
+              resolve(new Date());
+            }
+          }
+        };
+        xhr.onerror = function() {
+          // 如果请求出错，则使用本地时间
+          resolve(new Date());
+        };
+        xhr.send();
+      });
+    }
+
+    // 从百度API获取农历信息
+    function getLunarInfoFromBaidu(date) {
+      return new Promise((resolve, reject) => {
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        
+        // 百度日历API URL
+        const url = `https://sp1.baidu.com/8aQDcjqpAAV3otqbppnN2DJv/api.php?tn=wisetpl&format=json&resource_id=39043&query=${year}年${month}月`;
+        
+        // 创建JSONP请求
+        const script = document.createElement('script');
+        const callbackName = `jsonp_callback_${Date.now()}`;
+        
+        window[callbackName] = function(response) {
+          try {
+            if (response.status === '0') {
+              const data = response.data[0].almanac;
+              // 查找当前日期的农历信息
+              for (let i = 0; i < data.length; i++) {
+                const item = data[i];
+                if (parseInt(item.year) === year && parseInt(item.month) === month && parseInt(item.day) === day) {
+                  resolve({
+                    lunarYear: parseInt(item.lunarYear),
+                    lunarMonth: parseInt(item.lunarMonth),
+                    lunarMonthText: item.lMonth,
+                    lunarDay: parseInt(item.lunarDate),
+                    lunarDayText: item.lDate,
+                    ganZhiYear: item.gzYear,
+                    ganZhiMonth: item.gzMonth,
+                    ganZhiDay: item.gzDate,
+                    animal: item.animal
+                  });
+                  return;
+                }
+              }
+              // 如果没有找到，使用默认值
+              resolve(null);
+            } else {
+              resolve(null);
+            }
+          } catch (error) {
+            resolve(null);
+          } finally {
+            // 清理
+            delete window[callbackName];
+            document.body.removeChild(script);
+          }
+        };
+        
+        script.src = `${url}&cb=${callbackName}`;
+        document.body.appendChild(script);
+        
+        // 超时处理
+        setTimeout(() => {
+          if (window[callbackName]) {
+            delete window[callbackName];
+            document.body.removeChild(script);
+            resolve(null);
+          }
+        }, 5000);
+      });
+    }
+
+    // 更新时间显示
+    function updateTime() {
+      // 使用网络时间
+      getNetworkTime().then(now => {
+        // 更新日期显示
+        updateDateDisplay(now);
+      });
+    }
+    
+    // 更新数字时间显示（每秒调用一次）
+    function updateDigitalTime() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      digitalTimeElement.textContent = `${hours}:${minutes}:${seconds}`;
+    }
+
+    // 更新日期和时间显示
+    function updateDateDisplay(date) {
+      // 显示公历日期
+      const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+      gregorianDateElement.textContent = date.toLocaleDateString('zh-CN', options);
+      
+      // 从百度API获取农历信息
+      getLunarInfoFromBaidu(date).then(lunarInfo => {
+        if (lunarInfo) {
+          // 成功获取到农历信息
+          const currentPeriod = getCurrentPeriod(date.getHours());
+          lunarDateElement.textContent = `${lunarInfo.ganZhiYear}年${lunarMonths[lunarInfo.lunarMonth - 1]}${lunarInfo.lunarDayText} ${currentPeriod}`;
+          
+          // 计算小六壬
+          const monthNum = getLunarMonthNumber(lunarInfo.lunarMonth); // 使用1-12的农历月份
+          const dayNum = getLunarDayNumber(lunarInfo.lunarDay); // 使用1-30的农历日期
+          const periodIndex = getCurrentPeriodIndex(date.getHours());
+          const periodNum = getPeriodNumber(periodIndex); // 使用1-12的时辰
+          
+          // 更新数字显示
+          lunarMonthNumber.textContent = monthNum;
+          lunarDayNumber.textContent = dayNum;
+          periodNumber.textContent = periodNum;
+          
+          // 计算并显示小六壬
+          const liuZhouIndex = calculateLiuZhou(monthNum, dayNum, periodNum);
+          showLiuZhouDetail(liuZhouIndex);
+          
+          // 更新计算公式显示
+          const sum = monthNum + dayNum + periodNum;
+          const remainder = (sum - 2) % 6;
+          const adjustedRemainder = remainder >= 0 ? remainder : remainder + 6;
+          const finalIndex = adjustedRemainder === 0 ? 5 : adjustedRemainder - 1;
+          liuzhouCalculation.textContent = `计算方式：mod((${monthNum} + ${dayNum} + ${periodNum} - 2), 6) = ${adjustedRemainder} → 对应索引: ${finalIndex}`;
+        } else {
+          // 无法获取农历信息，使用备用方法
+          const lunarInfo = getSimplifiedLunarDate(date);
+          const currentPeriod = getCurrentPeriod(date.getHours());
+          lunarDateElement.textContent = `${lunarInfo.date} ${currentPeriod}`;
+          
+          // 计算小六壬
+          const monthNum = getLunarMonthNumber(lunarInfo.monthIndex + 1); // 使用1-12的农历月份
+          const dayNum = getLunarDayNumber(lunarInfo.day); // 使用1-30的农历日期
+          const periodIndex = getCurrentPeriodIndex(date.getHours());
+          const periodNum = getPeriodNumber(periodIndex); // 使用1-12的时辰
+          
+          // 更新数字显示
+          lunarMonthNumber.textContent = monthNum;
+          lunarDayNumber.textContent = dayNum;
+          periodNumber.textContent = periodNum;
+          
+          // 计算并显示小六壬
+          const liuZhouIndex = calculateLiuZhou(monthNum, dayNum, periodNum);
+          showLiuZhouDetail(liuZhouIndex);
+          
+          // 更新计算公式显示
+          const sum = monthNum + dayNum + periodNum;
+          const remainder = (sum - 2) % 6;
+          const adjustedRemainder = remainder >= 0 ? remainder : remainder + 6;
+          const finalIndex = adjustedRemainder === 0 ? 5 : adjustedRemainder - 1;
+          liuzhouCalculation.textContent = `计算方式：mod((${monthNum} + ${dayNum} + ${periodNum} - 2), 6) = ${adjustedRemainder} → 对应索引: ${finalIndex}`;
+        }
+      });
+    }
+    
+    // 获取当前时辰索引
+    function getCurrentPeriodIndex(hour) {
+      // 每个时辰对应2小时，子时(23:00-01:00)、丑时(01:00-03:00)、寅时(03:00-05:00)、卯时(05:00-07:00)、
+      // 辰时(07:00-09:00)、巳时(09:00-11:00)、午时(11:00-13:00)、未时(13:00-15:00)、
+      // 申时(15:00-17:00)、酉时(17:00-19:00)、戌时(19:00-21:00)、亥时(21:00-23:00)
+      // 修正算法：确保每个时辰都能正确对应
+      if (hour >= 23 || hour < 1) return 0; // 子时
+      if (hour >= 1 && hour < 3) return 1;  // 丑时
+      if (hour >= 3 && hour < 5) return 2;  // 寅时
+      if (hour >= 5 && hour < 7) return 3;  // 卯时
+      if (hour >= 7 && hour < 9) return 4;  // 辰时
+      if (hour >= 9 && hour < 11) return 5; // 巳时
+      if (hour >= 11 && hour < 13) return 6; // 午时
+      if (hour >= 13 && hour < 15) return 7; // 未时
+      if (hour >= 15 && hour < 17) return 8; // 申时
+      if (hour >= 17 && hour < 19) return 9; // 酉时
+      if (hour >= 19 && hour < 21) return 10; // 戌时
+      if (hour >= 21 && hour < 23) return 11; // 亥时
+      return 0; // 默认返回子时
+    }
+    
+    // 获取当前时辰
+    function getCurrentPeriod(hour) {
+      return timePeriods[getCurrentPeriodIndex(hour)].name;
+    }
+
+    // 简化版农历日期计算（备用方法）
+    function getSimplifiedLunarDate(date) {
+      // 这里使用简化算法，实际应用中建议使用专业的农历转换库
+      // 此算法仅作演示，精度有限
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+      
+      // 计算干支纪年（简化版）
+      // 实际应用中应该更复杂的规则，这里仅作演示
+      const stemIndex = (year - 4) % 10; // 4是甲年的偏移量
+      const branchIndex = (year - 4) % 12;
+      const ganZhiYear = heavenlyStems[stemIndex] + earthlyBranches[branchIndex];
+      
+      // 简化的农历月份和日期计算
+      // 注意：这只是一个示例，实际农历转换需要更复杂的算法
+      const lunarMonthIndex = (month + 1) % 12;
+      const lunarDay = (day + 19) % 30 || 30; // 确保日期在1-30之间
+      
+      // 获取农历日期字符串
+      const simplifiedDay = lunarDays[lunarDay - 1];
+      
+      return {
+        date: `${ganZhiYear}年${lunarMonths[lunarMonthIndex]}${simplifiedDay}`,
+        monthIndex: lunarMonthIndex,
+        day: lunarDay
+      };
+    }
+
+    // 初始化并启动时间显示
+    function startClock() {
+      initLiuZhouCards();
+      updateTime();
+      setInterval(updateTime, 60000); // 每分钟更新一次，避免频繁调用API
+      
+      // 每秒更新数字时间显示
+      updateDigitalTime();
+      setInterval(updateDigitalTime, 1000);
+    }
+
+    // 页面加载完成后启动时间显示
+    window.addEventListener('load', startClock);
+  </script>
+</body>
+</html>
